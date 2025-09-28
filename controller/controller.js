@@ -17,20 +17,25 @@ export const ProvideData = async (req,res)=>{
       return res.status(400).json({message:"Another server erro9r"});
     }
     finally{
-        //delete the least oldest used key from redis if there are more than 10 key
-        const noOfKeys = await client.dbSize();
-        console.log("No of keys ", noOfKeys);
-        if(noOfKeys > 3){
-            let cursor = '0';
-            do{
-              const [nextCursor, batch] = await client.scan(cursor);
-              console.log("cursor ",nextCursor);
-              console.log("batch ", batch);
-              cursor = nextCursor;
-            }while(cursor !=='0');
-            //delete the oldest one key
-           
-        }
+        console.log("in finally ")
+        const {keys} = await client.scan("0");
+        console.log(keys.length);
 
+        if(keys.length >10){
+
+           console.log("inside length")
+
+        const idleTimes = await Promise.all(
+            keys.map(async key =>({key, idle: await client.sendCommand(["OBJECT","IDLETIME",key])}))
+        )
+
+        console.log("dieal log ",idleTimes);
+
+        const keydelete = idleTimes.reduce((prev,curr)=>(curr.idle < prev.idle ? prev : curr));
+
+        console.log(keydelete.key);
+
+        await client.del(keydelete.key) //oldest key is deleted 
+     }
     }
 }
